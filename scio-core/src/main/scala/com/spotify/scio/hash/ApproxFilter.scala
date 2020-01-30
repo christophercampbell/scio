@@ -58,7 +58,7 @@ sealed trait ApproxFilter[T] extends Serializable {
  * Settings in case the elements need to be partitioned into multiple [[ApproxFilter]]s to
  * maintain the desired `fpp` and size.
  */
-final case class PartitionSettings(partitions: Int, expectedInsertions: Long)
+final case class PartitionSettings(partitions: Int, expectedInsertions: Long, sizeBytes: Long)
 
 /** A trait for all [[ApproxFilter]] companion objects. */
 sealed trait ApproxFilterCompanion {
@@ -229,15 +229,15 @@ object BloomFilter extends ApproxFilterCompanion {
     maxBytes: Int
   ): PartitionSettings = {
     // see [[com.google.common.hash.BloomFilter.optimalNumOfBits]]
-    val optimalNumOfBits =
-      (-expectedInsertions * math.log(fpp) / (math.log(2) * math.log(2))).toLong
+    def numBits(n: Long, p: Double) = (-n * math.log(p) / (math.log(2) * math.log(2))).toLong
+    val optimalNumOfBits = numBits(expectedInsertions, fpp)
 
     // given a constant fpp, optimalNumOfBits scales linearly with expectedInsertions
     val maxBits = maxBytes.toLong * 8
     val partitions = math.ceil(optimalNumOfBits.toDouble / maxBits).toInt
     val capacity = math.ceil(expectedInsertions.toDouble / partitions).toLong
 
-    PartitionSettings(partitions, capacity)
+    PartitionSettings(partitions, capacity, numBits(capacity, fpp) / 8)
   }
 
   private class BloomFilterCoder[T](implicit val hash: Hash[T]) extends AtomicCoder[Filter[T]] {
@@ -291,17 +291,16 @@ object ABloomFilter extends ApproxFilterCompanion {
     maxBytes: Int
   ): PartitionSettings = {
     // see [[com.google.common.hash.BloomFilter.optimalNumOfBits]]
-    def optimalWidth(n: Long, p: Double): Long =
-      math.ceil(-n * math.log(p) / (math.log(2) * math.log(2))).toLong
+    def numBits(n: Long, p: Double) = math.ceil(-n * math.log(p) / (math.log(2) * math.log(2))).toLong
 
-    val optimalNumOfBits = optimalWidth(expectedInsertions, fpp)
+    val optimalNumOfBits = numBits(expectedInsertions, fpp)
 
     // given a constant fpp, optimalNumOfBits scales linearly with expectedInsertions
     val maxBits = maxBytes.toLong * 8
     val partitions = math.ceil(optimalNumOfBits.toDouble / maxBits).toInt
     val capacity = math.ceil(expectedInsertions.toDouble / partitions).toLong
 
-    PartitionSettings(partitions, capacity)
+    PartitionSettings(partitions, capacity, numBits(capacity, fpp) / 8)
   }
 
   // FIXME: encodes all 4 instances, BFZero, BFItem, BFSparse & BFInstance as dense bit set, slow
