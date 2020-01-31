@@ -360,7 +360,11 @@ class PairSCollectionFunctions[K, V](val self: SCollection[(K, V)]) {
     rhs: SCollection[(K, W)],
     rhsNumKeys: Long,
     fpProb: Double = 0.01
-  )(implicit funnel: Funnel[K], koder: Coder[K], voder: Coder[V]): SCollection[(K, (V, Option[W]))] =
+  )(
+    implicit funnel: Funnel[K],
+    koder: Coder[K],
+    voder: Coder[V]
+  ): SCollection[(K, (V, Option[W]))] =
     self.transform { me =>
       SCollection.unionAll(
         split(me, rhs, rhsNumKeys, fpProb).map {
@@ -394,7 +398,11 @@ class PairSCollectionFunctions[K, V](val self: SCollection[(K, V)]) {
     rhs: SCollection[(K, W)],
     rhsNumKeys: Long,
     fpProb: Double = 0.01
-  )(implicit funnel: Funnel[K], koder: Coder[K], voder: Coder[V]): SCollection[(K, (Option[V], W))] =
+  )(
+    implicit funnel: Funnel[K],
+    koder: Coder[K],
+    voder: Coder[V]
+  ): SCollection[(K, (Option[V], W))] =
     self.transform { me =>
       SCollection.unionAll(
         split(me, rhs, rhsNumKeys, fpProb).map {
@@ -593,8 +601,7 @@ class PairSCollectionFunctions[K, V](val self: SCollection[(K, V)]) {
   )(implicit funnel: Funnel[K], koder: Coder[K], voder: Coder[V]): Seq[SideInput[BloomFilter[K]]] =
     if (self.context.isTest) {
       // use exact element count to avoid OOM from very large `thisNumKeys`
-      val side = self
-        .keys
+      val side = self.keys
         .asApproxFilter(BloomFilter, 0, fpp)
         .asSingletonSideInput(BloomFilter.create(Nil, 1, fpp))
       Seq(side)
@@ -603,10 +610,8 @@ class PairSCollectionFunctions[K, V](val self: SCollection[(K, V)]) {
       PairSCollectionFunctions.logger.info(
         "Partition settings for Bloom filter side input of {} keys: " +
           "partitions={}, expectedInsertions={}, sizeBytes={}",
-        Seq(thisNumKeys,
-          settings.partitions,
-          settings.expectedInsertions,
-          settings.sizeBytes))
+        Seq(thisNumKeys, settings.partitions, settings.expectedInsertions, settings.sizeBytes)
+      )
 
       self.keys
         .hashPartition(settings.partitions)
@@ -615,7 +620,6 @@ class PairSCollectionFunctions[K, V](val self: SCollection[(K, V)]) {
             .asSingletonSideInput(BloomFilter.create(Nil, settings.expectedInsertions, fpp))
         }
     }
-
 
   // =======================================================================
   // Transformations

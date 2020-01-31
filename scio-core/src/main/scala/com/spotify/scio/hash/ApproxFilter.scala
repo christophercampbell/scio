@@ -291,7 +291,8 @@ object ABloomFilter extends ApproxFilterCompanion {
     maxBytes: Int
   ): PartitionSettings = {
     // see [[com.google.common.hash.BloomFilter.optimalNumOfBits]]
-    def numBits(n: Long, p: Double) = math.ceil(-n * math.log(p) / (math.log(2) * math.log(2))).toLong
+    def numBits(n: Long, p: Double) =
+      math.ceil(-n * math.log(p) / (math.log(2) * math.log(2))).toLong
 
     val optimalNumOfBits = numBits(expectedInsertions, fpp)
 
