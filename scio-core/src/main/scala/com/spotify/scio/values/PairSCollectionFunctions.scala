@@ -590,23 +590,31 @@ class PairSCollectionFunctions[K, V](val self: SCollection[(K, V)]) {
   private[values] def optimalKeysBloomFiltersAsSideInputs(
     thisNumKeys: Long,
     fpp: Double
-  )(implicit funnel: Funnel[K], koder: Coder[K], voder: Coder[V]): Seq[SideInput[BloomFilter[K]]] = {
-    val settings = BloomFilter.partitionSettings(thisNumKeys, fpp, 100 * 1024 * 1024)
-    PairSCollectionFunctions.logger.info(
-      "Partition settings for Bloom filter side input of {} keys: " +
-        "partitions={}, expectedInsertions={}, sizeBytes={}",
-      Seq(thisNumKeys,
-        settings.partitions,
-        settings.expectedInsertions,
-        settings.sizeBytes))
+  )(implicit funnel: Funnel[K], koder: Coder[K], voder: Coder[V]): Seq[SideInput[BloomFilter[K]]] =
+    if (self.context.isTest) {
+      // use exact element count to avoid OOM from very large `thisNumKeys`
+      val side = self
+        .keys
+        .asApproxFilter(BloomFilter, 0, fpp)
+        .asSingletonSideInput(BloomFilter.create(Nil, 1, fpp))
+      Seq(side)
+    } else {
+      val settings = BloomFilter.partitionSettings(thisNumKeys, fpp, 100 * 1024 * 1024)
+      PairSCollectionFunctions.logger.info(
+        "Partition settings for Bloom filter side input of {} keys: " +
+          "partitions={}, expectedInsertions={}, sizeBytes={}",
+        Seq(thisNumKeys,
+          settings.partitions,
+          settings.expectedInsertions,
+          settings.sizeBytes))
 
-    self.keys
-      .hashPartition(settings.partitions)
-      .map { me =>
-        me.asApproxFilter(BloomFilter, settings.expectedInsertions, fpp)
-          .asSingletonSideInput(BloomFilter.create(Nil, settings.expectedInsertions, fpp))
-      }
-  }
+      self.keys
+        .hashPartition(settings.partitions)
+        .map { me =>
+          me.asApproxFilter(BloomFilter, settings.expectedInsertions, fpp)
+            .asSingletonSideInput(BloomFilter.create(Nil, settings.expectedInsertions, fpp))
+        }
+    }
 
 
   // =======================================================================
